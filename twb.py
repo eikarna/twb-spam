@@ -73,8 +73,6 @@ def spam(campaign_data):
                     "moduleUuid": campaign_data["data"]["modules"][0]["uuid"],
                     "moduleCode": campaign_data["data"]["modules"][0]["moduleCode"],
                     "subModuleUuid": campaign_data["data"]["modules"][0]["data"]["frames"][0].split(".")[0],
-                    "campaignUuid": campaign_data["data"]["modules"][0]["uuid"],
-                    "campaignCreatorUuid": campaign_data["data"]["campaign"]["campaignCreator"]["avatar"].split(".")[0],
                 }
 
                 response = requests.post("https://api.twibbonize.com/v2/analytics/hit", cookies=cookie, json=payload)
