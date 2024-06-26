@@ -17,7 +17,7 @@ def format_number(number):
 
 def fetch_campaign_data(url):
     try:
-        campaign_url = f"https://api.twibbonize.com/v1/campaign/{url}"
+        campaign_url = f"https://api.twibbonize.com/v2/campaign/{url}"
         response = requests.get(campaign_url)
         campaign_data = response.json()
         return campaign_data
@@ -30,11 +30,11 @@ def process_campaign_data(campaign_data):
         return None
 
     try:
-        campaign_uuid = campaign_data["data"]["campaign"]["uuid"]
+        campaign_uuid = campaign_data["data"]["modules"][0]["uuid"]
         module_uuid = campaign_data["data"]["modules"][0]["uuid"]
         module_code = campaign_data["data"]["modules"][0]["moduleCode"]
         sub_module_uuid = campaign_data["data"]["modules"][0]["data"]["frames"][0].split(".")[0]
-        campaign_creator_uuid = campaign_data["data"]["campaign"]["campaignCreator"]["uuid"]
+        campaign_creator_uuid = campaign_data["data"]["campaign"]["campaignCreator"]["avatar"].split(".")[0]
 
         print("")
         print(f"{SUCCESS_COLOR}Extracted Keys:")
@@ -52,40 +52,44 @@ def process_campaign_data(campaign_data):
         return None
 
 def spam(campaign_data):
-    retry_limit = 5
+    retry_limit = 10
     retry_count = 0
+    success = True
 
-    while True and retry_count < retry_limit:
+    while success and retry_count <= retry_limit:
         try:
             payload = {
                 "deviceId": str(uuid.uuid4())
             }
 
-            response = requests.post("https://analytics-producer.twibbonize.com/analytics/hash", json=payload)
+            response = requests.post("https://api.twibbonize.com/v2/analytics/hash", json=payload)
             cookie = response.cookies.get_dict()
             body = response.json()
 
-            payload = {
-                "fingerprint": body["data"]["fingerprint"],
-                "url": campaign_data["data"]["campaign"]["url"],
-                "moduleUuid": campaign_data["data"]["modules"][0]["uuid"],
-                "moduleCode": campaign_data["data"]["modules"][0]["moduleCode"],
-                "subModuleUuid": campaign_data["data"]["modules"][0]["data"]["frames"][0].split(".")[0],
-                "campaignUuid": campaign_data["data"]["campaign"]["uuid"],
-                "campaignCreatorUuid": campaign_data["data"]["campaign"]["campaignCreator"]["uuid"],
-            }
+            if not "message" in body:
+                payload = {
+                    "fingerprint": body["data"]["fingerprint"],
+                    "url": campaign_data["data"]["campaign"]["url"],
+                    "moduleUuid": campaign_data["data"]["modules"][0]["uuid"],
+                    "moduleCode": campaign_data["data"]["modules"][0]["moduleCode"],
+                    "subModuleUuid": campaign_data["data"]["modules"][0]["data"]["frames"][0].split(".")[0],
+                    "campaignUuid": campaign_data["data"]["modules"][0]["uuid"],
+                    "campaignCreatorUuid": campaign_data["data"]["campaign"]["campaignCreator"]["avatar"].split(".")[0],
+                }
 
-            response = requests.post("https://analytics-producer.twibbonize.com/analytics/hit", cookies=cookie, json=payload)
+                response = requests.post("https://api.twibbonize.com/v2/analytics/hit", cookies=cookie, json=payload)
 
-            res1 = requests.get(f"https://api.twibbonize.com/v1/analytics/hit/campaign/{campaign_data['data']['campaign']['uuid']}")
-            bod1 = res1.json()
+                res1 = requests.get(f"https://api.twibbonize.com/v2/analytics/hit/campaign/{campaign_data['data']['modules'][0]['uuid']}")
+                bod1 = res1.json()
 
-            total_views = int(bod1['data']['hit'])
-            formatted_views = format_number(total_views)
-            print(f"[{threading.get_native_id()}] {SUCCESS_COLOR}Sukses! Total Views:", formatted_views)
+                total_views = int(bod1['data']['hit'])
+                formatted_views = format_number(total_views)
+                print(f"[{threading.get_native_id()}] {SUCCESS_COLOR}Sukses! Total Views:", formatted_views)
         except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
             print(f"{ERROR_COLOR}An error occurred:", str(e))
             retry_count += 1
+            if retry_count >= retry_limit:
+                success = False
             print(f"{WARN_COLOR}Retrying... Attempt {retry_count}/{retry_limit}")
             time.sleep(1)
 
